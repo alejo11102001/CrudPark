@@ -37,23 +37,31 @@ public class MensualidadesController: ControllerBase
         return mensualidad;
     }
 
-    // ✅ 3️⃣ Registrar una nueva mensualidad (con validación de placa vigente)
+    // ✅ Registrar una nueva mensualidad (con validación de placa vigente)
     [HttpPost]
     public async Task<ActionResult<Mensualidad>> PostMensualidad(Mensualidad mensualidad)
     {
-        // Verificar si la placa ya tiene una mensualidad vigente
+        // 🔹 Verificar si la placa ya tiene una mensualidad vigente (ajuste de zona horaria)
         bool vigente = await _context.mensualidades.AnyAsync(m =>
             m.placa.ToLower() == mensualidad.placa.ToLower() &&
             m.activa &&
-            m.fecha_fin >= DateTime.Today);
+            m.fecha_fin.Date >= DateTime.UtcNow.Date);
 
         if (vigente)
             return Conflict(new { message = "Ya existe una mensualidad vigente para esta placa." });
 
+        // 🔹 Normalizar fechas a UTC antes de guardar (evita error con PostgreSQL)
+        if (mensualidad.fecha_inicio.Kind == DateTimeKind.Unspecified)
+            mensualidad.fecha_inicio = DateTime.SpecifyKind(mensualidad.fecha_inicio, DateTimeKind.Utc);
+
+        if (mensualidad.fecha_fin.Kind == DateTimeKind.Unspecified)
+            mensualidad.fecha_fin = DateTime.SpecifyKind(mensualidad.fecha_fin, DateTimeKind.Utc);
+
+        // 🔹 Guardar la nueva mensualidad
         _context.mensualidades.Add(mensualidad);
         await _context.SaveChangesAsync();
 
-        // Enviar correo de confirmación (opcional)
+        // 🔹 Enviar correo de confirmación
         if (!string.IsNullOrEmpty(mensualidad.correo))
         {
             await EnviarCorreoAsync(
@@ -74,8 +82,27 @@ public class MensualidadesController: ControllerBase
         if (id != mensualidad.id_mensualidad)
             return BadRequest();
 
+        // 🔹 Normalizar fechas a UTC para evitar errores con PostgreSQL
+        if (mensualidad.fecha_inicio.Kind == DateTimeKind.Unspecified)
+            mensualidad.fecha_inicio = DateTime.SpecifyKind(mensualidad.fecha_inicio, DateTimeKind.Utc);
+
+        if (mensualidad.fecha_fin.Kind == DateTimeKind.Unspecified)
+            mensualidad.fecha_fin = DateTime.SpecifyKind(mensualidad.fecha_fin, DateTimeKind.Utc);
+
         _context.Entry(mensualidad).State = EntityState.Modified;
-        await _context.SaveChangesAsync();
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!_context.mensualidades.Any(e => e.id_mensualidad == id))
+                return NotFound();
+            else
+                throw;
+        }
+
         return NoContent();
     }
 
@@ -96,9 +123,14 @@ public class MensualidadesController: ControllerBase
     [HttpPost("enviar-recordatorios")]
     public async Task<IActionResult> EnviarRecordatorios()
     {
-        var hoy = DateTime.Today;
+        // 🔹 Usar UTC para evitar conflictos entre "timestamp with/without time zone"
+        var hoy = DateTime.UtcNow.Date;
+
+        // 🔹 Convertir la fecha de la base a DateTime.Date para comparar correctamente
         var proximasAVencer = await _context.mensualidades
-            .Where(m => m.activa && m.fecha_fin <= hoy.AddDays(3) && m.fecha_fin >= hoy)
+            .Where(m => m.activa &&
+                        m.fecha_fin.Date <= hoy.AddDays(3) &&
+                        m.fecha_fin.Date >= hoy)
             .ToListAsync();
 
         foreach (var m in proximasAVencer)
