@@ -1,0 +1,42 @@
+Carpetas de compilación
+bin/
+obj/
+
+Archivos de dependencias locales
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+Configuraciones de usuario (Visual Studio / Rider / VS Code)
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+
+Archivos de Rider/IntelliJ
+.idea/
+
+Archivos de VS Code
+.vscode/
+
+Cache y temporales
+*.dbmdl
+*.bak
+*.log
+*.tmp
+
+Publicaciones y paquetes
+*.publish.xml
+*.pubxml
+*.pubxml.user
+*.vspscc
+*.vssscc
+*.ncb
+*.aps
+*.cache
+*.pdb
+
+Paquetes NuGet (la carpeta packages puede ignorarse si restauras con dotnet restore)
+*.nupkg
+*.snupkg
+packages/
