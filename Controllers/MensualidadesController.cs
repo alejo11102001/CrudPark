@@ -41,6 +41,13 @@ public class MensualidadesController: ControllerBase
     [HttpPost]
     public async Task<ActionResult<Mensualidad>> PostMensualidad(Mensualidad mensualidad)
     {
+        
+        // Validar fechas
+        if (mensualidad.fecha_fin <= mensualidad.fecha_inicio)
+        {
+            return BadRequest("La fecha de fin debe ser posterior a la fecha de inicio.");
+        }
+        
         // 🔹 Verificar si la placa ya tiene una mensualidad vigente (ajuste de zona horaria)
         bool vigente = await _context.mensualidades.AnyAsync(m =>
             m.placa.ToLower() == mensualidad.placa.ToLower() &&
@@ -57,21 +64,11 @@ public class MensualidadesController: ControllerBase
         if (mensualidad.fecha_fin.Kind == DateTimeKind.Unspecified)
             mensualidad.fecha_fin = DateTime.SpecifyKind(mensualidad.fecha_fin, DateTimeKind.Utc);
 
+        mensualidad.fecha_fin = mensualidad.fecha_fin.Date.AddDays(1).AddSeconds(-1);
         // 🔹 Guardar la nueva mensualidad
         _context.mensualidades.Add(mensualidad);
         await _context.SaveChangesAsync();
-
-        // 🔹 Enviar correo de confirmación
-        if (!string.IsNullOrEmpty(mensualidad.correo))
-        {
-            await EnviarCorreoAsync(
-                mensualidad.correo,
-                "Registro de Mensualidad",
-                $"Hola {mensualidad.nombre_cliente}, tu mensualidad fue registrada con éxito.\n" +
-                $"Placa: {mensualidad.placa}\nInicio: {mensualidad.fecha_inicio:d}\nFin: {mensualidad.fecha_fin:d}"
-            );
-        }
-
+        
         return CreatedAtAction(nameof(GetMensualidad), new { id = mensualidad.id_mensualidad }, mensualidad);
     }
 
@@ -120,8 +117,8 @@ public class MensualidadesController: ControllerBase
     }
 
     // ✅ 6️⃣ Enviar correos automáticos a mensualidades próximas a vencer (3 días)
-    [HttpPost("enviar-recordatorios")]
-    public async Task<IActionResult> EnviarRecordatorios()
+    [HttpPost("enviar-recordatorios/{id}")]
+    public async Task<IActionResult> EnviarRecordatorios(int id)
     {
         // 🔹 Usar UTC para evitar conflictos entre "timestamp with/without time zone"
         var hoy = DateTime.UtcNow.Date;

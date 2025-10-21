@@ -89,15 +89,15 @@ public class DashboardController: ControllerBase
         // Mensualidades
         // ==============================
         var mensualidadesActivas = await _context.mensualidades
-            .Where(m => m.activa && m.fecha_fin >= hoy)
+            .Where(m => m.activa && m.fecha_fin.Date >= hoy)
             .CountAsync();
 
         var proximasAVencer = await _context.mensualidades
-            .Where(m => m.activa && m.fecha_fin <= proximos3dias && m.fecha_fin >= hoy)
+            .Where(m => m.activa && m.fecha_fin.Date > hoy && m.fecha_fin.Date <= proximos3dias)
             .CountAsync();
 
         var vencidas = await _context.mensualidades
-            .Where(m => m.activa && m.fecha_fin < hoy)
+            .Where(m => !m.activa || m.fecha_fin.Date < hoy)
             .CountAsync();
 
         // ==============================
